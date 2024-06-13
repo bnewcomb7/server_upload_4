@@ -29,9 +29,7 @@ setupAuth(app, uploadDirectory);
 // User Options
 const userInputOptions = {
     key: "jhgfuesgoergb", 
-    uploadInterval: 2 * 1000, 
     rename_with_date: true,
-    upload_existing_files: false,
     tool_key: "server",
     all_txt_ext: true
 };
@@ -41,10 +39,9 @@ function initializeOptions(userOptions) {
     const defaultOptions = {
         key: "jhgfuesgoergb",
         rename_with_date: true, // Add datetime to file name in uploads folder
-        upload_existing_files: false, // Save files already in targetDirectory on start
         allowedExtensions: ['.txt', '.log', '.csv', '.xls', '.pdf', '.doc', '.docx', '.jpg', '.png'], // Only save files with these extensions
         tool_key: "unspecified", // User did not specify tool_key in userInputOptions
-        all_txt_ext: true // Do not add .txt to file names by default
+        all_txt_ext: true // add .txt to file names by default
     };
 
     return Object.assign({}, defaultOptions, userOptions);
@@ -59,16 +56,40 @@ const storage = multer.diskStorage({
         cb(null, uploadDirectory); // Save files to 'uploads/' directory (resorted later)
     },
     filename: (req, file, cb) => {
-      const dateString = moment().tz('America/New_York').format('YYYY-MM-DD_HH-mm-ss');
-      const fileExtension = path.extname(file.originalname);
-      let fileName = file.originalname;
-    //   if (req.body.rename_with_date === 'true') {
-    //     fileName = `${dateString}_${path.basename(file.originalname, fileExtension)}${fileExtension}`;
-    //   }
-    //   if (req.body.all_txt_ext === 'true') {
-    //     fileName = `${fileName}.txt`;
-    //   }
-      cb(null, fileName);
+        const dateString = moment().tz('America/New_York').format('YYYY-MM-DD_HH-mm-ss');
+        let fileName = file.originalname;
+
+        if (options.rename_with_date || options.all_txt_ext) {
+            // Handle multiple extensions scenario
+            const firstPeriodIndex = fileName.indexOf('.');
+            const secondPeriodIndex = fileName.indexOf('.', firstPeriodIndex + 1);
+            console.log(firstPeriodIndex,secondPeriodIndex)
+            // Get the base name (before the first period)
+            let basename = fileName.substring(0, firstPeriodIndex);
+            
+            // Get the real extension (between the first and second period)
+            let extension;
+            if (secondPeriodIndex === -1) {
+                // Only one extension
+                extension = fileName.substring(firstPeriodIndex + 1);
+            } else {
+                // Get the real extension (between the first and second period)
+                extension = fileName.substring(firstPeriodIndex + 1, secondPeriodIndex);
+            }
+            console.log(basename,extension);
+
+            if (options.rename_with_date) {
+                basename = `${basename}_${dateString}`;
+            }
+
+            if (options.all_txt_ext) {
+                extension = `${extension}.txt`; // Ensure the final extension is .extension.txt
+            }
+            
+            fileName = `${basename}.${extension}`;
+        }
+
+        cb(null, fileName);
     }
 });
 
