@@ -21,7 +21,7 @@ app.get('/index', (req, res) => {
 // Directories
 const uploadDirectory = '/home/mitnano/Tool_Logs'; // Server upload directory
 let fileNameKeyPath = path.join(__dirname, 'protected', 'fname_key.txt'); // Where to store key to file data
-let fileNameKeyPath_small = path.join(__dirname, 'public', 'small_fname_key.txt'); // Where to store key to some file data
+let fileNameKeyPath_small = path.join(__dirname, 'semi-protected', 'small_fname_key.txt'); // Where to store key to some file data
 
 // Apply authentication and pages setup
 setupAuth(app, uploadDirectory);
@@ -95,7 +95,22 @@ async function appendFileNameKey(addonData) {
       } catch (err) {
         console.log(err)
         console.log('Data NOT appended.')
-      }
+      };
+    addonData_reorder_small = {
+        original_filename: addonData.original_filename,
+        tool: addonData.tool,
+        date_time: addonData.date_time,
+        size_bytes: addonData.size_bytes,
+        path_server: addonData.path_server,
+    };
+    try {
+        var file_key_text = ',\n' + JSON.stringify(addonData_reorder_small, null, 4);
+        fs.appendFileSync(fileNameKeyPath_small, file_key_text);
+        // console.log('The key data was appended to file!');
+      } catch (err) {
+        console.log(err)
+        console.log('Data NOT appended.')
+      };
 }
 
 // Custom middleware to check key before uploading file

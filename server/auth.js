@@ -8,7 +8,7 @@ const fs = require('fs');
 const FormData = require('form-data');
 const path = require('path');
 const formidable = require('formidable');
-const bodyParser = require('body-parser')
+const bodyParser = require('body-parser');
 require('moment-timezone/builds/moment-timezone-with-data');
 
 function readLogins() {
@@ -50,16 +50,21 @@ function setupAuth(app, uploadDirectory) {
         const user = logins.find(user => user.username === username && user.password === password);
         if (!user) return false;
 
-        // Check permissions
-        if (user.permissions === 'all') {
-            return true; // User has permission to access everything
-        } else if (user.permissions === 'none') {
-            // Allow access to /index and /table only
-            return false;
-        }
+        // Attach user permissions to the request for later use
+        req.userPermissions = user.permissions;
 
-        return false; // Default: deny access
+        return true;
     }
+
+    const permissionAuth = (requiredPermission) => {
+        return (req, res, next) => {
+            if (req.userPermissions === requiredPermission || req.userPermissions === 'all') {
+                next();
+            } else {
+                res.sendStatus(403); // Forbidden
+            }
+        };
+    };
 
     app.get('/auth/check', (req, res) => {
         if (req.session.user) {
@@ -87,16 +92,16 @@ function setupAuth(app, uploadDirectory) {
     });
 
     // Apply auth middleware to the /explorer and /public routes
-    app.use('/public', auth, express.static('public'), serveIndex('public', { 'icons': true }));
-    app.use('/protected', auth, express.static('protected'), serveIndex('protected', { 'icons': true }));
-    app.use('/explorer', auth, express.static(uploadDirectory), serveIndex(uploadDirectory, { 'icons': true }));
+    app.use('/public', express.static('public'), serveIndex('public', { 'icons': true }));
+    app.use('/semi-protected', auth, permissionAuth('index'), express.static('semi-protected'), serveIndex('semi-protected', { 'icons': true }));
+    app.use('/protected', auth, permissionAuth('all'), express.static('protected'), serveIndex('protected', { 'icons': true }));
+    app.use('/explorer', auth, permissionAuth('all'), express.static(uploadDirectory), serveIndex(uploadDirectory, { 'icons': true }));
 
-    // Example route with permissions
     app.get('/index', auth, (req, res) => {
         res.sendFile(path.join(__dirname, 'pages', 'index.html'));
     });
 
-    app.get('/table', auth, (req, res) => {
+    app.get('/table', auth, permissionAuth('all'), (req, res) => {
         res.sendFile(path.join(__dirname, 'pages', 'file_table.html'));
     });
 
