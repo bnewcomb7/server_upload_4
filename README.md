@@ -1,2 +1,3 @@
 # server_upload_4
-upload servers using node js
+Upload files automatically from target directories to file server
+
