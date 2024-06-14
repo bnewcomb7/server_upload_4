@@ -14,16 +14,23 @@ const port = 8080;
 const app = express();
 app.use(express.json())
 
+// Directories
+const uploadDirectory = '/home/mitnano/Tool_Logs'; // Server upload directory
+const subdirConfigPath = path.join(__dirname, 'subdir_config.json'); // Path to the JSON subdirectory key
+const fileNameKeyPath = path.join(__dirname, 'protected', 'fname_key.txt'); // Where to store key to file data
+const fileNameKeyPath_small = path.join(__dirname, 'semi-protected', 'small_fname_key.txt'); // Where to store key to some file data
+
+// Apply authentication and pages setup
+// GET route for redirecting main page to index
+app.get('/', (req, res) => {
+    res.redirect('/index');
+});
+
+// GET route for serving index.html
 app.get('/index', (req, res) => {
     res.sendFile(path.join(__dirname, 'pages', 'index.html'));
 });
 
-// Directories
-const uploadDirectory = '/home/mitnano/Tool_Logs'; // Server upload directory
-let fileNameKeyPath = path.join(__dirname, 'protected', 'fname_key.txt'); // Where to store key to file data
-let fileNameKeyPath_small = path.join(__dirname, 'semi-protected', 'small_fname_key.txt'); // Where to store key to some file data
-
-// Apply authentication and pages setup
 setupAuth(app, uploadDirectory);
 
 // User Options
@@ -50,6 +57,9 @@ function initializeOptions(userOptions) {
 // Initialize options
 const options = initializeOptions(userInputOptions);
 
+// Load info from subdirConfig
+const subdirConfig = JSON.parse(fs.readFileSync(subdirConfigPath, 'utf8'));
+
 // Set up storage engine
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -63,7 +73,6 @@ const storage = multer.diskStorage({
             // Handle multiple extensions scenario
             const firstPeriodIndex = fileName.indexOf('.');
             const secondPeriodIndex = fileName.indexOf('.', firstPeriodIndex + 1);
-            console.log(firstPeriodIndex,secondPeriodIndex)
             // Get the base name (before the first period)
             let basename = fileName.substring(0, firstPeriodIndex);
             
@@ -76,7 +85,6 @@ const storage = multer.diskStorage({
                 // Get the real extension (between the first and second period)
                 extension = fileName.substring(firstPeriodIndex + 1, secondPeriodIndex);
             }
-            console.log(basename,extension);
 
             if (options.rename_with_date) {
                 basename = `${basename}_${dateString}`;
@@ -108,7 +116,7 @@ async function appendFileNameKey(addonData) {
         timestamp: addonData.timestamp,
         IP: addonData.IP,
         req_headers: addonData.req_headers
-    }
+    };
     try {
         var file_key_text = ',\n' + JSON.stringify(addonData_reorder, null, 4);
         fs.appendFileSync(fileNameKeyPath, file_key_text);
@@ -160,11 +168,27 @@ app.post('/upload', upload.single('file'), checkKey, (req, res) => {
     addonData.IP = req.ip;
     addonData.req_headers = req.headers;
 
-    // Check if addonData.tool is a string and a valid directory name
-    if (typeof addonData.tool === 'string' && /^[a-zA-Z0-9-_]+$/.test(addonData.tool)) {
-        // Sort file to subdir
-        const newDirectory = path.join(uploadDirectory, addonData.tool);
+    // Reorganize file on server into tool directory or sub dir
+    let subdir = '';
+    let newDirectory = '';
+    for (const pattern in subdirConfig) {
+        if (file.originalname.includes(pattern)) {
+            subdir = subdirConfig[pattern]; 
+            newDirectory = path.join(uploadDirectory, subdir);
+            break;
+        }
+    }
 
+    // Check if addonData.tool is a valid string and construct the final directory path
+    if (typeof addonData.tool === 'string' && /^[a-zA-Z0-9-_]+$/.test(addonData.tool)) {
+        if (newDirectory) {
+            newDirectory = path.join(uploadDirectory, addonData.tool, subdir);
+        } else {
+            newDirectory = path.join(uploadDirectory, addonData.tool);
+        }
+    }
+
+    if (newDirectory) {
         // Create the directory if it doesn't exist
         if (!fs.existsSync(newDirectory)) {
             fs.mkdirSync(newDirectory, { recursive: true });
@@ -187,25 +211,8 @@ app.post('/upload', upload.single('file'), checkKey, (req, res) => {
         addonData: addonData
     });
 });
-// GET route for redirecting main page to index
-app.get('/', (req, res) => {
-    res.redirect('/index');
-});
-
-// GET route for serving index.html
-app.get('/index', (req, res) => {
-    res.sendFile(path.join(__dirname, 'pages', 'index.html'));
-});
 
 // Start the server
 app.listen(port, () => {
-    // Call checkForChanges to initialize previousFiles with the files in the target directory
-    // checkForChanges();
-
-    // // Set intervals for checking changes and uploading files
-    // setInterval(checkForChanges, options.checkInterval);
-    // setInterval(uploadFromTarget, options.uploadInterval);
-
     console.log(`Server running at http://10.19.0.246:${port}`);
-    // console.log('Monitoring files saved to ' + targetDirectory + '\n');
 });
