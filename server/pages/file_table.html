@@ -15,74 +15,92 @@
             text-decoration: none; /* Remove underline */
             cursor: pointer; /* Show pointer cursor on hover */
         }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f2f2f2;
+        }
+
+        .container {
+            max-width: 95vw;
+            margin: 20px auto;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 <body>
-    <table id="dataTable" class="display">
-        <thead>
-            <tr>
-                <th>New Filename</th>
-                <th>Original Filename</th>
-                <th>Tool</th>
-                <th>Date and Time</th>
-                <th>Size (bytes)</th>
-                <th>Path on Server</th>
-                <th>Original Filepath</th>
-                <th>Original Filetype</th>
-                <th>Timestamp</th>
-                <th>IP</th>
-            </tr>
-        </thead>
-        <tbody>
-        </tbody>
-    </table>
+    <div class="container">
+        <table id="dataTable" class="display">
+            <thead>
+                <tr>
+                    <th>New Filename</th>
+                    <th>Original Filename</th>
+                    <th>Tool</th>
+                    <th>Date and Time</th>
+                    <th>Size (bytes)</th>
+                    <th>Path on Server</th>
+                    <th>Original Filepath</th>
+                    <th>Original Filetype</th>
+                    <th>Timestamp</th>
+                    <th>IP</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
 
-    <!-- Include jQuery -->
-    <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
-    <!-- Include DataTables JS -->
-    <script src="https://cdn.datatables.net/2.0.5/js/dataTables.js"></script>
-    <!-- Include ColReorder JS -->
-    <script src="https://cdn.datatables.net/colreorder/2.0.1/js/ColReorder.js"></script>
-    
-    <script>
-        $(document).ready(function() {
-            // Read the text file
-            $.ajax({
-                url: 'protected/fname_key.txt',
-                dataType: 'text',
-                success: function(data) {
-                    data = '[' + data + ']';
-                    // Parse the data into JSON
-                    var jsonData = JSON.parse(data);
-                    // Initialize DataTables with ColReorder
-                    var table = $('#dataTable').DataTable({
-                        data: jsonData,
-                        columns: [
-                            { data: 'new_filename' },
-                            { data: 'original_filename' },
-                            { data: 'tool' },
-                            { data: 'date_time' },
-                            { data: 'size_bytes' },
-                            { 
-                                data: 'path_server',
-                                render: function(data, type, row, meta) {
-                                    // Extract the relevant part of the path
-                                    var relevantPath = data.split('/').slice(4).join('/');
-                                    // Render as normal text with onclick to open in new tab
-                                    return '<span class="normal-link" onclick="window.open(\'http://10.19.0.246:8080/explorer/' + encodeURIComponent(relevantPath) + '\', \'_blank\')">' + relevantPath + '</span>';
-                                }
-                            },
-                            { data: 'original_filepath' },
-                            { data: 'original_fileext' },
-                            { data: 'timestamp' },
-                            { data: 'IP' }
-                        ],
-                        colReorder: true, // Enable ColReorder
-                        order: [[3, 'desc']]
-                    });
-                }
+        <!-- Include jQuery -->
+        <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
+        <!-- Include DataTables JS -->
+        <script src="https://cdn.datatables.net/2.0.5/js/dataTables.js"></script>
+        <!-- Include ColReorder JS -->
+        <script src="https://cdn.datatables.net/colreorder/2.0.1/js/ColReorder.js"></script>
+        
+        <script>
+            $(document).ready(function() {
+                // Read the text file
+                $.ajax({
+                    url: 'protected/fname_key.txt',
+                    dataType: 'text',
+                    success: function(data) {
+                        data = '[' + data + ']';
+                        // Parse the data into JSON
+                        var jsonData = JSON.parse(data);
+                        // Initialize DataTables with ColReorder
+                        var table = $('#dataTable').DataTable({
+                            data: jsonData,
+                            columns: [
+                                { data: 'new_filename' },
+                                { data: 'original_filename' },
+                                { data: 'tool' },
+                                { data: 'date_time' },
+                                { data: 'size_bytes' },
+                                { 
+                                    data: 'path_server',
+                                    render: function(data, type, row, meta) {
+                                        // Extract the relevant part of the path
+                                        var relevantPath = data.split('/').slice(4).join('/');
+                                        // Render as normal text with onclick to open in new tab
+                                        return '<span class="normal-link" onclick="window.open(\'http://10.19.0.251:8080/explorer/' + encodeURIComponent(relevantPath) + '\', \'_blank\')">' + relevantPath + '</span>';
+                                    }
+                                },
+                                { data: 'original_filepath' },
+                                { data: 'original_fileext' },
+                                { data: 'timestamp' },
+                                { data: 'IP' }
+                            ],
+                            colReorder: true, // Enable ColReorder
+                            order: [[3, 'desc']]
+                        });
+                    }
+                });
             });
-        });
-    </script>
+        </script>
+    </div>
 </body>
 </html>
