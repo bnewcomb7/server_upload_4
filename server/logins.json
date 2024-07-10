@@ -1,4 +1,4 @@
 [
     { "username": "mit.nano", "password": "key.nano", "permissions": "all" },
-    { "username": "user", "password": "user", "permissions": "none"  }
+    { "username": "user", "password": "user", "permissions": "index"  }
 ]

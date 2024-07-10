@@ -214,5 +214,6 @@ app.post('/upload', upload.single('file'), checkKey, (req, res) => {
 
 // Start the server
 app.listen(port, () => {
-    console.log(`Server running at http://10.19.0.246:${port}`);
+    console.log(`Server running at http://10.19.0.251:${port}`);
+
 });
