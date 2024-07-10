@@ -12,7 +12,7 @@ const app = express();
 app.use(express.json());
 
 // Directories
-const uploadDirectory = `http://10.19.0.246:${port}/upload`; // Server upload directory
+const uploadDirectory = `http://10.19.0.251:${port}/upload`; // Server upload directory
 const targetDirectories = [
     path.join('C:', 'Users', 'bnewcomb', 'Desktop', 'tool_log_test')
 ];
