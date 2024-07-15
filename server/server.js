@@ -1,18 +1,15 @@
 const express = require('express');
-const http = require('http');
 const fs = require('fs');
-const FormData = require('form-data');
+const fsp = require('fs').promises; // Import fs.promises for async
 const path = require('path');
-const formidable = require('formidable');
 const moment = require('moment');
 const multer = require('multer');
-const bodyParser = require('body-parser')
 require('moment-timezone/builds/moment-timezone-with-data');
 const { setupAuth } = require('./auth'); // Import setupAuth function from auth.js
 
 const port = 8080;
 const app = express();
-app.use(express.json())
+app.use(express.json());
 
 // Directories
 const uploadDirectory = '/home/mitnano/Tool_Logs'; // Server upload directory
@@ -21,12 +18,10 @@ const fileNameKeyPath = path.join(__dirname, 'protected', 'fname_key.txt'); // W
 const fileNameKeyPath_small = path.join(__dirname, 'semi-protected', 'small_fname_key.txt'); // Where to store key to some file data
 
 // Apply authentication and pages setup
-// GET route for redirecting main page to index
 app.get('/', (req, res) => {
     res.redirect('/index');
 });
 
-// GET route for serving index.html
 app.get('/index', (req, res) => {
     res.sendFile(path.join(__dirname, 'pages', 'index.html'));
 });
@@ -35,7 +30,7 @@ setupAuth(app, uploadDirectory);
 
 // User Options
 const userInputOptions = {
-    key: "jhgfuesgoergb", 
+    key: "jhgfuesgoergb",
     rename_with_date: true,
     tool_key: "server",
     all_txt_ext: true
@@ -57,8 +52,14 @@ function initializeOptions(userOptions) {
 // Initialize options
 const options = initializeOptions(userInputOptions);
 
-// Load info from subdirConfig
-const subdirConfig = JSON.parse(fs.readFileSync(subdirConfigPath, 'utf8'));
+// Load info from subdirConfig synchronously
+let subdirConfig;
+try {
+    subdirConfig = JSON.parse(fs.readFileSync(subdirConfigPath, 'utf8'));
+} catch (error) {
+    console.error('Failed to read subdir_config.json:', error);
+    process.exit(1);
+}
 
 // Set up storage engine
 const storage = multer.diskStorage({
@@ -75,7 +76,7 @@ const storage = multer.diskStorage({
             const secondPeriodIndex = fileName.indexOf('.', firstPeriodIndex + 1);
             // Get the base name (before the first period)
             let basename = fileName.substring(0, firstPeriodIndex);
-            
+
             // Get the real extension (between the first and second period)
             let extension;
             if (secondPeriodIndex === -1) {
@@ -93,7 +94,7 @@ const storage = multer.diskStorage({
             if (options.all_txt_ext) {
                 extension = `${extension}.txt`; // Ensure the final extension is .extension.txt
             }
-            
+
             fileName = `${basename}.${extension}`;
         }
 
@@ -103,8 +104,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage, limits: { fileSize: 500 * 1024 * 1024 }});
 
+// Async function to append file name key
 async function appendFileNameKey(addonData) {
-    addonData_reorder = {
+    const addonDataReorder = {
         new_filename: addonData.new_filename,
         original_filename: addonData.original_filename,
         tool: addonData.tool,
@@ -117,29 +119,20 @@ async function appendFileNameKey(addonData) {
         IP: addonData.IP,
         req_headers: addonData.req_headers
     };
-    try {
-        var file_key_text = ',\n' + JSON.stringify(addonData_reorder, null, 4);
-        fs.appendFileSync(fileNameKeyPath, file_key_text);
-        // console.log('The key data was appended to file!');
-      } catch (err) {
-        console.log(err)
-        console.log('Data NOT appended.')
-      };
-    addonData_reorder_small = {
+    const addonDataReorderSmall = {
         original_filename: addonData.original_filename,
         tool: addonData.tool,
         date_time: addonData.date_time,
         size_bytes: addonData.size_bytes,
         path_server: addonData.path_server,
     };
+
     try {
-        var file_key_text = ',\n' + JSON.stringify(addonData_reorder_small, null, 4);
-        fs.appendFileSync(fileNameKeyPath_small, file_key_text);
-        // console.log('The key data was appended to file!');
-      } catch (err) {
-        console.log(err)
-        console.log('Data NOT appended.')
-      };
+        await fsp.appendFile(fileNameKeyPath, ',\n' + JSON.stringify(addonDataReorder, null, 4));
+        await fsp.appendFile(fileNameKeyPath_small, ',\n' + JSON.stringify(addonDataReorderSmall, null, 4));
+    } catch (err) {
+        console.error('Error appending data:', err);
+    }
 }
 
 // Custom middleware to check key before uploading file
@@ -150,7 +143,7 @@ function checkKey(req, res, next) {
     } catch (error) {
         return res.status(400).send('Invalid JSON in addonData');
     }
-    
+
     if (addonData.key === options.key || addonData.key === "admin_key" || addonData.key === "key.nano") {
         next(); // Key matches, proceed to upload
     } else {
@@ -158,7 +151,7 @@ function checkKey(req, res, next) {
     }
 }
 
-app.post('/upload', upload.single('file'), checkKey, (req, res) => {
+app.post('/upload', upload.single('file'), checkKey, async (req, res) => {
     let addonData = JSON.parse(req.body.addonData);
     const file = req.file;
 
@@ -173,7 +166,7 @@ app.post('/upload', upload.single('file'), checkKey, (req, res) => {
     let newDirectory = '';
     for (const pattern in subdirConfig) {
         if (addonData.original_filepath.includes(pattern)) {
-            subdir = subdirConfig[pattern]; 
+            subdir = subdirConfig[pattern];
             newDirectory = path.join(uploadDirectory, subdir);
             break;
         }
@@ -190,21 +183,32 @@ app.post('/upload', upload.single('file'), checkKey, (req, res) => {
 
     if (newDirectory) {
         // Create the directory if it doesn't exist
-        if (!fs.existsSync(newDirectory)) {
-            fs.mkdirSync(newDirectory, { recursive: true });
+        try {
+            await fsp.mkdir(newDirectory, { recursive: true });
+        } catch (err) {
+            console.error('Error creating directory:', err);
+            return res.status(500).send('Internal Server Error');
         }
 
         // Define the new path of the file
         const newPath = path.join(newDirectory, file.filename);
 
         // Move the file to the new directory
-        fs.renameSync(file.path, newPath);
-
-        // Update addonData.path_server to the new location
-        addonData.path_server = newPath;
+        try {
+            await fsp.rename(file.path, newPath);
+            addonData.path_server = newPath;
+        } catch (err) {
+            console.error('Error moving file:', err);
+            return res.status(500).send('Internal Server Error');
+        }
     }
 
-    appendFileNameKey(addonData)
+    try {
+        await appendFileNameKey(addonData);
+    } catch (err) {
+        console.error('Error appending file name key:', err);
+        return res.status(500).send('Internal Server Error');
+    }
 
     res.json({
         message: `Successfully uploaded ${file.filename}`,
@@ -215,5 +219,4 @@ app.post('/upload', upload.single('file'), checkKey, (req, res) => {
 // Start the server
 app.listen(port, () => {
     console.log(`Server running at http://10.19.0.251:${port}`);
-
 });
