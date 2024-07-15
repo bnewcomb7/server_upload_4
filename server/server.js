@@ -172,7 +172,7 @@ app.post('/upload', upload.single('file'), checkKey, (req, res) => {
     let subdir = '';
     let newDirectory = '';
     for (const pattern in subdirConfig) {
-        if (file.originalname.includes(pattern)) {
+        if (addonData.original_filepath.includes(pattern)) {
             subdir = subdirConfig[pattern]; 
             newDirectory = path.join(uploadDirectory, subdir);
             break;
