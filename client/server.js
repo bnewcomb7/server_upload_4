@@ -23,7 +23,7 @@ const userInputOptions = {
     checkInterval: 1 * 1000,
     uploadInterval: 3 * 1000,
     rename_with_date: false, // keep false, done on server side
-    upload_existing_files: false,
+    upload_existing_files: true,
     tool_key: "Windows_Laptop",
     all_txt_ext: false // keep false, done on server side
 };
