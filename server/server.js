@@ -10,7 +10,7 @@ const { setupAuth } = require('./auth'); // Import setupAuth function from auth.
 const port = 8080;
 const app = express();
 app.use(express.json());
-
+// IT WORKED
 // Directories
 const uploadDirectory = '/home/mitnano/Tool_Logs'; // Server upload directory
 const subdirConfigPath = path.join(__dirname, 'subdir_config.json'); // Path to the JSON subdirectory key
@@ -214,6 +214,19 @@ app.post('/upload', upload.single('file'), checkKey, async (req, res) => {
         message: `Successfully uploaded ${file.filename}`,
         addonData: addonData
     });
+});
+
+// Serve the updated server.js file based on tool_key
+app.get('/update', (req, res) => {
+    // Path to the updated server.js file
+    const updatedServerFilePath = path.join(__dirname, 'client', 'server.js');
+    console.log(updatedServerFilePath)
+    // Check if the updated server.js file exists
+    if (fs.existsSync(updatedServerFilePath)) {
+        res.sendFile(updatedServerFilePath);
+    } else {
+        res.status(404).send('Update file not found');
+    }
 });
 
 // Start the server
