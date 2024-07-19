@@ -10,7 +10,7 @@ const { setupAuth } = require('./auth'); // Import setupAuth function from auth.
 const port = 8080;
 const app = express();
 app.use(express.json());
-// IT WORKED
+
 // Directories
 const uploadDirectory = '/home/mitnano/Tool_Logs'; // Server upload directory
 const subdirConfigPath = path.join(__dirname, 'subdir_config.json'); // Path to the JSON subdirectory key
@@ -70,33 +70,44 @@ const storage = multer.diskStorage({
         const dateString = moment().tz('America/New_York').format('YYYY-MM-DD_HH-mm-ss');
         let fileName = file.originalname;
 
-        if (options.rename_with_date || options.all_txt_ext) {
-            // Handle multiple extensions scenario
-            const firstPeriodIndex = fileName.indexOf('.');
-            const secondPeriodIndex = fileName.indexOf('.', firstPeriodIndex + 1);
-            // Get the base name (before the first period)
-            let basename = fileName.substring(0, firstPeriodIndex);
+    if (options.rename_with_date || options.all_txt_ext) {
+        // Find the last period index
+        const lastPeriodIndex = fileName.lastIndexOf('.');
 
-            // Get the real extension (between the first and second period)
-            let extension;
-            if (secondPeriodIndex === -1) {
-                // Only one extension
-                extension = fileName.substring(firstPeriodIndex + 1);
-            } else {
-                // Get the real extension (between the first and second period)
-                extension = fileName.substring(firstPeriodIndex + 1, secondPeriodIndex);
-            }
+        // Check if there is a period in the fileName
+        if (lastPeriodIndex !== -1) {
+            // Get the basename (anything before the last period)
+            let basename = fileName.substring(0, lastPeriodIndex);
+
+            // Get the extension (including the last period and everything after)
+            let extension = fileName.substring(lastPeriodIndex);
 
             if (options.rename_with_date) {
+                // Append date string to basename
                 basename = `${basename}_${dateString}`;
             }
 
             if (options.all_txt_ext) {
-                extension = `${extension}.txt`; // Ensure the final extension is .extension.txt
+                // Append .txt to the existing extension
+                extension = `${extension}.txt`;
             }
 
-            fileName = `${basename}.${extension}`;
+            // Combine basename and extension to form the new fileName
+            fileName = `${basename}${extension}`;
+        } else {
+            // If no period found, handle the fileName without extension
+            if (options.rename_with_date) {
+                // Just append date string to fileName
+                fileName = `${fileName}_${dateString}`;
+            }
+
+            if (options.all_txt_ext) {
+                // Append .txt as the extension
+                fileName = `${fileName}.txt`;
+            }
         }
+    }
+
 
         cb(null, fileName);
     }
@@ -133,6 +144,36 @@ async function appendFileNameKey(addonData) {
     } catch (err) {
         console.error('Error appending data:', err);
     }
+}
+
+async function moveFile(filePath, newPath, maxAttempts = 3, retryInterval = 1000) {
+    let attempt = 1;
+
+    while (attempt <= maxAttempts) {
+        try {
+            const stats = await fsp.stat(filePath);
+            const fileSizeInBytes = stats.size;
+
+            // Check if file size is greater than zero to determine if it's ready
+            if (fileSizeInBytes > 0) {
+                await fsp.rename(filePath, newPath);
+                console.log(`File moved successfully from ${filePath} to ${newPath}`);
+                return; // Exit function if move was successful
+            } else {
+                console.log(`Attempt ${attempt}: File is still being written or downloaded. Retrying in ${retryInterval}ms...`);
+            }
+        } catch (err) {
+            console.error(`Attempt ${attempt} - Error moving file:`, err);
+        }
+
+        // Increment attempt counter
+        attempt++;
+
+        // Wait for retryInterval milliseconds before trying again
+        await new Promise(resolve => setTimeout(resolve, retryInterval));
+    }
+
+    console.error(`Max attempts (${maxAttempts}) reached. Unable to move file.`);
 }
 
 // Custom middleware to check key before uploading file
@@ -194,13 +235,8 @@ app.post('/upload', upload.single('file'), checkKey, async (req, res) => {
         const newPath = path.join(newDirectory, file.filename);
 
         // Move the file to the new directory
-        try {
-            await fsp.rename(file.path, newPath);
-            addonData.path_server = newPath;
-        } catch (err) {
-            console.error('Error moving file:', err);
-            return res.status(500).send('Internal Server Error');
-        }
+        moveFile(file.path, newPath)
+        addonData.path_server = newPath;
     }
 
     try {
