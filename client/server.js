@@ -5,27 +5,31 @@ const fetch = require('node-fetch');
 const FormData = require('form-data');
 const path = require('path');
 const moment = require('moment');
+const { exec } = require('child_process');
 require('moment-timezone/builds/moment-timezone-with-data');
 
+const version = 4.2; // version of this file, update version is specified in server side code (app.get('/update'...))
 const port = 8080;
 const app = express();
 app.use(express.json());
 
 // Directories
+// Read configuration from config.json
+const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 const uploadDirectory = `http://10.19.0.251:${port}/upload`; // Server upload directory
-const targetDirectories = [
-    path.join('C:', 'Users', 'bnewcomb', 'Desktop', 'tool_log_test')
-];
+const targetDirectories = config.targetDirectories.map(dir =>
+    path.join(...dir.split(path.sep))
+);
 
 // User Options
 const userInputOptions = {
     key: "jhgfuesgoergb",
-    checkInterval: 1 * 1000,
-    uploadInterval: 3 * 1000,
+    checkInterval: parseFloat(config.checkInterval),
+    uploadInterval: parseFloat(config.uploadInterval),
     rename_with_date: false, // keep false, done on server side
-    upload_existing_files: true,
-    tool_key: "Windows_Laptop",
-    all_txt_ext: false // keep false, done on server side
+    upload_existing_files: false,
+    tool_key: config.tool_key,
+    all_txt_ext: false, // keep false, done on server side
 };
 
 // Function to initialize values with user options or defaults
@@ -34,6 +38,7 @@ function initializeOptions(userOptions) {
         key: "jhgfuesgoergb",
         checkInterval: 60 * 1000, // Check every 60 seconds
         uploadInterval: 24 * 60 * 60 * 1000, // Upload every 24 hours
+        updateCheckInterval: 28 * 60 * 60 * 1000, // Check for updates every 24 hours
         rename_with_date: false, // Add datetime to file name in uploads folder
         upload_existing_files: false, // Save files already in targetDirectory on start
         allowedExtensions: ['.txt', '.log', '.csv', '.xls', '.xlsx', '.pdf', '.doc', '.docx', '.jpg', '.png'], // Only save files with these extensions
@@ -89,11 +94,11 @@ function getFilesRecursively(directory) {
 function checkForChanges() {
     targetDirectories.forEach(targetDirectory => {
         let currentFiles = getFilesRecursively(targetDirectory).map(file => {
-            return { 
-                name: file.name, 
-                path: file.path, 
-                mtime: file.mtime, 
-                directory: path.dirname(file.path).replace(targetDirectory, '') 
+            return {
+                name: file.name,
+                path: file.path,
+                mtime: file.mtime,
+                directory: path.dirname(file.path).replace(targetDirectory, '')
             };
         });
 
@@ -205,11 +210,78 @@ async function uploadFile(filePath, uploadUrl, file, addonData) {
     }
 }
 
+function checkForUpdate() {
+    const updateServerUrl = `http://10.19.0.251:${port}/update`;
+
+    http.get(updateServerUrl, (res) => {
+        if (res.statusCode !== 200) {
+            console.error(`Failed to get update, status code: ${res.statusCode}`);
+            return;
+        }
+        let data = '';
+
+        res.on('data', (chunk) => {
+            data += chunk;
+        });
+
+        res.on('end', () => {
+            try {
+                const jsonResponse = JSON.parse(data);
+                const { update_version, update_file } = jsonResponse;
+                // console.log(update_version, update_file);
+                if (version === parseFloat(update_version)) {
+                    console.log(`Version ${update_version}: Up to date.`);
+                    return;
+                }
+                // Write the file content to a temporary file
+                const tempFileName = 'server_temp.js';
+                fs.writeFile(tempFileName, update_file, (writeErr) => {
+                    if (writeErr) {
+                        console.error('Error writing temporary file:', writeErr);
+                        return;
+                    }
+
+                    // Rename the temporary file to server.js
+                    fs.rename(tempFileName, 'server.js', (renameErr) => {
+                        if (renameErr) {
+                            console.error('Error renaming file:', renameErr);
+                            return;
+                        }
+
+                        console.log(`Update to version ${version} complete`);
+                        restartServer();
+                    });
+                });
+            } catch (parseErr) {
+                console.error('Error parsing JSON response:', parseErr);
+            }
+        });
+    })
+}
+
+// requires windows task scheduler that runs pm2 restart server as admin (with name RestartPM2Server)
+function restartServer() {
+    exec('schtasks /run /tn "RestartPM2Server"', (error, stdout, stderr) => {
+        if (error) {
+            console.error(`Error restarting server: ${error.message}`);
+            return;
+        }
+        if (stderr) {
+            console.error(`Error: ${stderr}`);
+            return;
+        }
+        console.log(`Server restarted: ${stdout}`);
+    });
+}
+
 app.get('/upload', (req, res) => {
     // Handle GET requests to /upload route
     res.send('GET request to /upload endpoint.');
 });
 
+console.log(`Server running at http://10.19.0.251:${port}\n`);
+console.log('Monitoring files saved to the following directories:');
+targetDirectories.forEach(directory => console.log(directory));
 
 // Call checkForChanges to initialize previousFiles with the files in the target directories
 checkForChanges();
@@ -217,8 +289,4 @@ checkForChanges();
 // Set intervals for checking changes and uploading files
 setInterval(checkForChanges, options.checkInterval);
 setInterval(uploadFromTarget, options.uploadInterval);
-
-console.log(`Server running at http://10.19.0.246:${port}\n`);
-console.log('Monitoring files saved to the following directories:');
-targetDirectories.forEach(directory => console.log(directory));
-
+setInterval(checkForUpdate, options.updateCheckInterval);

@@ -1,0 +1,8 @@
+{
+    "tool_key": "Windows_Laptop",
+    "targetDirectories": [
+        "C:/Users/bnewcomb/Desktop/tool_log_test"
+    ],
+    "checkInterval": "1000",
+    "uploadInterval": "3000"
+}
