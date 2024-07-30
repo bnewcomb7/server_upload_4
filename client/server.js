@@ -64,13 +64,27 @@ targetDirectories.forEach(directory => {
 });
 
 if (!fs.existsSync(uploadDirectory)) {
-    console.log(`Warning: Need to create or change upload directory. ${uploadDirectory}`);
+    console.log(`Warning: Upload directory is not local or not found. ${uploadDirectory}`);
 }
 targetDirectories.forEach(directory => {
     if (!fs.existsSync(directory)) {
         console.log(`Warning: Need to create or change target directory. ${directory}`);
     }
 });
+
+// Append change details to file_changes.log
+function logFileChanges(dir, changeDetails) {
+    if (changeDetails.includes('file_changes.log')) {
+        return; // Do not update file_changes log about changes made to itself
+    }
+    const logFilePath = path.join(dir, 'file_changes.log');
+    const logEntry = `${moment().format('YYYY/MM/DD HH:mm:ss')} — ${changeDetails}\n`;
+    fs.appendFileSync(logFilePath, logEntry, 'utf8', (err) => {
+        if (err) {
+            console.error(`Error writing to ${logFilePath}:`, err);
+        }
+    });
+}
 
 // Recursively get files from a directory
 function getFilesRecursively(directory) {
@@ -122,6 +136,8 @@ function checkForChanges() {
         if (updates.length > 0) {
             updates.forEach(file => {
                 if (!changedFiles.find(f => f.path === file.path)) {
+                    // Log file change
+                    logFileChanges(targetDirectory, `${file.path} modified`);
                     // Check if the file extension is allowed
                     const fileExtension = path.extname(file.name);
                     if (options.allowedExtensions.includes(fileExtension.toLowerCase())) {
