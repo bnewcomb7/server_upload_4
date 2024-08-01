@@ -28,6 +28,7 @@ const userInputOptions = {
     uploadInterval: parseFloat(config.uploadInterval),
     rename_with_date: false, // keep false, done on server side
     upload_existing_files: false,
+    updateCheckInterval: 24 * 60 * 60 * 1000 + 120000,
     tool_key: config.tool_key,
     all_txt_ext: false, // keep false, done on server side
 };
@@ -38,7 +39,7 @@ function initializeOptions(userOptions) {
         key: "jhgfuesgoergb",
         checkInterval: 60 * 1000, // Check every 60 seconds
         uploadInterval: 24 * 60 * 60 * 1000, // Upload every 24 hours
-        updateCheckInterval: 28 * 60 * 60 * 1000, // Check for updates every 24 hours
+        updateCheckInterval: 24 * 60 * 60 * 1000 + 120000, // Check for updates every 24 hours and 2 min
         rename_with_date: false, // Add datetime to file name in uploads folder
         upload_existing_files: false, // Save files already in targetDirectory on start
         allowedExtensions: ['.txt', '.log', '.csv', '.xls', '.xlsx', '.pdf', '.doc', '.docx', '.jpg', '.png'], // Only save files with these extensions
@@ -112,6 +113,7 @@ function checkForChanges() {
                 name: file.name,
                 path: file.path,
                 mtime: file.mtime,
+                orig_target: targetDirectory,
                 directory: path.dirname(file.path).replace(targetDirectory, '')
             };
         });
@@ -136,8 +138,6 @@ function checkForChanges() {
         if (updates.length > 0) {
             updates.forEach(file => {
                 if (!changedFiles.find(f => f.path === file.path)) {
-                    // Log file change
-                    logFileChanges(targetDirectory, `${file.path} modified`);
                     // Check if the file extension is allowed
                     const fileExtension = path.extname(file.name);
                     if (options.allowedExtensions.includes(fileExtension.toLowerCase())) {
@@ -190,10 +190,11 @@ async function uploadFile(filePath, uploadUrl, file, addonData) {
         addonData.timestamp = moment().valueOf();
         addonData.date_time = dateString;
         addonData.key = options.key;
+        addonData.org_path = `${path.basename(file.orig_target)}${file.directory}`
 
         // Include subdirectory structure in file name
         let subDirPath = file.directory.split(path.sep).filter(part => part).join('-');
-        let newFileName = subDirPath ? `${subDirPath}-${file.name}` : file.name;
+        let newFileName = subDirPath ? `${path.basename(file.orig_target)}-${subDirPath}-${file.name}` : file.name;
 
         if (options.rename_with_date) {
             newFileName = `${dateString}_${path.basename(newFileName, fileExtension)}${fileExtension}`;
@@ -265,6 +266,16 @@ function checkForUpdate() {
                         }
 
                         console.log(`Update to version ${version} complete`);
+
+                        const projectDir = __dirname; // The directory containing the server.js file
+                        exec(`cd ${projectDir} && npm install`, (error, stdout, stderr) => {
+                            if (error) {
+                                console.error(`Error installing dependencies: ${stderr}`);
+                                return;
+                            }
+                            console.log('Dependencies installed successfully.');
+                        });
+
                         restartServer();
                     });
                 });
@@ -277,6 +288,7 @@ function checkForUpdate() {
 
 // requires windows task scheduler that runs pm2 restart server as admin (with name RestartPM2Server)
 function restartServer() {
+    uploadFromTarget() // upload any changes that would be forgotten on restart
     exec('schtasks /run /tn "RestartPM2Server"', (error, stdout, stderr) => {
         if (error) {
             console.error(`Error restarting server: ${error.message}`);
