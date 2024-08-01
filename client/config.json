@@ -4,5 +4,6 @@
         "C:/Users/bnewcomb/Desktop/tool_log_test"
     ],
     "checkInterval": "1000",
-    "uploadInterval": "3000"
+    "uploadInterval": "5000",
+    "updateCheckInterval": "86440000"
 }
