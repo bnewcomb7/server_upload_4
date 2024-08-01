@@ -202,27 +202,21 @@ app.post('/upload', upload.single('file'), checkKey, async (req, res) => {
     addonData.IP = req.ip;
     addonData.req_headers = req.headers;
 
-    // Reorganize file on server into tool directory or sub dir
-    let subdir = '';
+    // Reorganize file on server into tool directory then subdirectory
     let newDirectory = '';
-    for (const pattern in subdirConfig) {
-        if (addonData.original_filepath.includes(pattern)) {
-            subdir = subdirConfig[pattern];
-            newDirectory = path.join(uploadDirectory, subdir);
-            break;
-        }
-    }
+    let org_path = path.normalize(addonData.org_path);
 
     // Check if addonData.tool is a valid string and construct the final directory path
     if (typeof addonData.tool === 'string' && /^[a-zA-Z0-9-_]+$/.test(addonData.tool)) {
-        if (newDirectory) {
-            newDirectory = path.join(uploadDirectory, addonData.tool, subdir);
+        if (org_path) {
+            newDirectory = path.join(uploadDirectory, addonData.tool, org_path);
         } else {
             newDirectory = path.join(uploadDirectory, addonData.tool);
         }
     }
 
     if (newDirectory) {
+        newDirectory = path.normalize(newDirectory).split(path.sep === '/' ? '\\' : '/').join(path.sep);
         // Create the directory if it doesn't exist
         try {
             await fsp.mkdir(newDirectory, { recursive: true });
@@ -233,7 +227,6 @@ app.post('/upload', upload.single('file'), checkKey, async (req, res) => {
 
         // Define the new path of the file
         const newPath = path.join(newDirectory, file.filename);
-
         // Move the file to the new directory
         moveFile(file.path, newPath)
         addonData.path_server = newPath;
