@@ -261,7 +261,7 @@ app.get('/update', (req, res) => {
 
             // Construct metadata object
             const metadata = {
-                update_version: '4.2',
+                update_version: '4.32',
                 update_file: data
             };
 
